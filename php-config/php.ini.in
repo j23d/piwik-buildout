@@ -1,0 +1,5 @@
+[PHP]
+extension=pdo.so
+extension=pdo_mysql.so
+open_basedir = ${buildout:directory}/parts/nginx/piwik
+cgi.fix_pathinfo = 1

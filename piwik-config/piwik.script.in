@@ -1,0 +1,92 @@
+#!/bin/bash
+# starts or stops the nginx web server with fast-cgi and a MySQL Server
+
+# nginx
+NAME=nginx
+DESC=nginx
+PATH=${buildout:directory}/bin:${buildout:directory}/parts/nginx/bin:/usr/sbin:/bin
+DAEMON=${buildout:directory}/parts/nginx/sbin/nginx
+PID=${buildout:directory}/parts/nginx/logs/$NAME.pid
+STARTSTOPDEAMON=/sbin/start-stop-daemon
+#QUIET=--quiet
+QUIET=
+
+# fast cgi
+BIND=${nginx-conf:fast-cgi}
+USER=${nginx-conf:user}
+PHP_FCGI_CHILDREN=15
+PHP_FCGI_MAX_REQUESTS=1000
+
+PHP_CGI=${buildout:directory}/parts/php/bin/php-cgi
+PHP_CGI_NAME=`/usr/bin/basename $PHP_CGI`
+PHP_CGI_ARGS="- USER=$USER PATH=${buildout:directory}/parts/php/bin PHP_FCGI_CHILDREN=$PHP_FCGI_CHILDREN PHP_FCGI_MAX_REQUESTS=$PHP_FCGI_MAX_REQUESTS $PHP_CGI -b $BIND"
+RETVAL=0
+
+test -x $DAEMON || exit 0
+set -e
+
+start() {
+    echo -n "Starting MySQL Server: "
+    ${buildout:directory}/bin/mysqld_safe
+    echo -n ""
+
+    echo -n "Starting PHP FastCGI: "
+    $STARTSTOPDEAMON --quiet --start --background --chuid "$USER" --exec /usr/bin/env -- $PHP_CGI_ARGS
+    RETVAL=$?
+    echo "$PHP_CGI_NAME."
+
+    echo -n "Starting $DESC: "
+    $STARTSTOPDEAMON --start $QUIET --pidfile $PID --exec $DAEMON -- $DAEMON_OPTS
+    echo "$NAME."
+}
+
+stop() {
+    echo -n "Stopping $DESC: "
+    $STARTSTOPDEAMON --stop $QUIET --pidfile $PID --exec $DAEMON
+    echo "$NAME."
+
+    echo -n "Stopping PHP FastCGI: "
+    /usr/bin/killall -q -w -u $USER $PHP_CGI_NAME
+    RETVAL=$?
+    echo "$PHP_CGI_NAME."
+
+    echo -n "Stopping MySQL Server: "
+    ${buildout:directory}/bin/stop-mysql
+}
+
+restart() {
+    stop;
+    start;
+}
+
+reload() {
+    echo -n "Reloading $DESC configuration: "
+    $STARTSTOPDEAMON --stop --signal HUP $QUIET --pidfile $PID --exec $DAEMON
+    echo "$NAME."
+}
+
+usage() {
+    N=${buildout:directory}/bin/nginx_control
+    echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
+}
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart|force-reload)
+    restart
+    ;;
+  reload)
+    reload
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+
+exit 0

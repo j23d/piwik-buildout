@@ -1,0 +1,86 @@
+# uncomment this if you want to start nginx as superuser
+#user  ${nginx-conf:user};
+worker_processes 4;
+
+error_log  logs/error.log;
+#error_log  logs/error.log  notice;
+#error_log  logs/error.log  info;
+pid        logs/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    # Mime types
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    # Logs
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"'
+                      '$host, $server_name';
+
+    access_log  logs/access.log  main;
+
+    # Size Limits
+    client_body_buffer_size   128k;
+    client_header_buffer_size 1k;
+    client_max_body_size      5M;
+    large_client_header_buffers 1 1k;
+
+    # Timeouts
+    client_body_timeout   360;
+    client_header_timeout 60;
+    keepalive_timeout     60 60;
+    send_timeout          60;
+
+    ## General Options
+    ignore_invalid_headers   on;
+    limit_zone gulag $binary_remote_addr 1m;
+    recursive_error_pages    on;
+    sendfile                 on;
+    server_name_in_redirect off;
+    server_tokens           off;
+
+    ## TCP options
+    tcp_nodelay on;
+    tcp_nopush  on;
+
+    ## Compression
+    gzip              on;
+    gzip_static       on;
+    gzip_buffers      16 8k;
+    gzip_comp_level   9;
+    gzip_http_version 1.0;
+    gzip_min_length   0;
+    gzip_types        text/plain text/css application/xhtml+xml text/xml application/xml application/xml+rss image/x-icon image/bmp application/x-javascript text/javascript too;
+    gzip_vary         on;
+
+
+    server {
+        listen       ${nginx-conf:listen};
+        server_name  ${nginx-conf:server-name};
+
+        # pass the PHP scripts to FastCGI server listening on ${nginx-conf:fast-cgi}
+        location ~ \.php$ {
+            root           ${buildout:directory}/parts/nginx/piwik;
+            fastcgi_pass   ${nginx-conf:fast-cgi};
+            fastcgi_index  index.php;
+            fastcgi_param  SCRIPT_FILENAME  ${buildout:directory}/parts/nginx/piwik$fastcgi_script_name;
+            include        fastcgi_params;
+        }
+
+        location / {
+            root   piwik;
+            index  index.php;
+        }
+
+        # redirect server error pages to the static page /50x.html
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+    }
+}
