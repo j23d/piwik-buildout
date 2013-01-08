@@ -27,7 +27,7 @@ set -e
 
 start() {
     echo -n "Starting MySQL Server: "
-    ${buildout:directory}/bin/mysqld_safe
+    ${buildout:directory}/bin/mysqld_safe --port=${globals:mysql-port}
     echo -n ""
 
     echo -n "Starting PHP FastCGI: "
